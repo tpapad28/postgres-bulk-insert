@@ -1,6 +1,7 @@
 package com.tpapad.pbi.service;
 
 import com.tpapad.pbi.model.BigData;
+import com.tpapad.pbi.model.BigDataArrays;
 import com.tpapad.pbi.repository.BigDataRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,26 +42,10 @@ public class LoaderService {
     public void testWithUnnest() {
         log.info("[UNNEST] Starting...");
         final List<BigData> batch = generateBatch(BATCH_SIZE);
-        // In case we need to time this extra step that prepares the arrays for `unnest`...
-        final long prepStart = System.nanoTime();
-        final int size = batch.size();
-        final Long[] ids = new Long[size];
-        final String[] sensors = new String[size];
-        final Instant[] timestamps = new Instant[size];
-        final Float[] values = new Float[size];
-        final AtomicInteger index = new AtomicInteger(0);
-        batch.stream().parallel().forEach(bigData -> {
-            final int i = index.getAndIncrement();
-            ids[i] = bigData.getId();
-            sensors[i] = bigData.getSensorId();
-            timestamps[i] = bigData.getEventTime();
-            values[i] = bigData.getSensorValue();
-        });
-        final Duration prepDuration = Duration.ofNanos(System.nanoTime() - prepStart);
-        log.trace("[UNNEST] Preparation of {} records in {} (Speed: {} r/ms)", BATCH_SIZE, prepDuration, (float) BATCH_SIZE / prepDuration.toMillis());
+        final BigDataArrays arrays = generateArrays(batch, "UNNEST");
 
         final long startTime = System.nanoTime();
-        int rowsInserted = repository.batchWithUnnest(ids, sensors, timestamps, values);
+        int rowsInserted = repository.batchWithUnnest(arrays.ids, arrays.sensorIds, arrays.eventTimes, arrays.sensorValues);
         final Duration duration = Duration.ofNanos(System.nanoTime() - startTime);
         log.info("[UNNEST] Saved {} ({} in batch) records in {}ms (Speed: {} r/ms)", rowsInserted, BATCH_SIZE, duration.toMillis(), (float) BATCH_SIZE / duration.toMillis());
     }
@@ -70,26 +55,10 @@ public class LoaderService {
     public void testWithUnnestAlternative() {
         log.info("[Multi-UNNEST] Starting...");
         final List<BigData> batch = generateBatch(BATCH_SIZE);
-        // In case we need to time this extra step that prepares the arrays for `unnest`...
-        final long prepStart = System.nanoTime();
-        final int size = batch.size();
-        final Long[] ids = new Long[size];
-        final String[] sensors = new String[size];
-        final Instant[] timestamps = new Instant[size];
-        final Float[] values = new Float[size];
-        final AtomicInteger index = new AtomicInteger(0);
-        batch.stream().parallel().forEach(bigData -> {
-            final int i = index.getAndIncrement();
-            ids[i] = bigData.getId();
-            sensors[i] = bigData.getSensorId();
-            timestamps[i] = bigData.getEventTime();
-            values[i] = bigData.getSensorValue();
-        });
-        final Duration prepDuration = Duration.ofNanos(System.nanoTime() - prepStart);
-        log.trace("[Multi-UNNEST] Preparation of {} records in {} (Speed: {} r/ms)", BATCH_SIZE, prepDuration, (float) BATCH_SIZE / prepDuration.toMillis());
+        final BigDataArrays arrays = generateArrays(batch, "Multi-UNNEST");
 
         final long startTime = System.nanoTime();
-        int rowsInserted = repository.batchWithUnnestAlternative(ids, sensors, timestamps, values);
+        int rowsInserted = repository.batchWithUnnestAlternative(arrays.ids, arrays.sensorIds, arrays.eventTimes, arrays.sensorValues);
         final Duration duration = Duration.ofNanos(System.nanoTime() - startTime);
         log.info("[Multi-UNNEST] Saved {} ({} in batch) records in {}ms (Speed: {} r/ms)", rowsInserted, BATCH_SIZE, duration.toMillis(), (float) BATCH_SIZE / duration.toMillis());
     }
@@ -101,5 +70,23 @@ public class LoaderService {
             batch.add(new BigData(batchStartingId + i, String.format("Sensor-%s", r.nextInt(10)), Instant.now(), r.nextFloat()));
         }
         return batch;
+    }
+
+    private BigDataArrays generateArrays(List<BigData> batch, String step) {
+        // In case we need to time this extra step that prepares the arrays for `unnest`...
+        final long prepStart = System.nanoTime();
+        final int size = batch.size();
+        final BigDataArrays arrays = new BigDataArrays(size);
+        final AtomicInteger index = new AtomicInteger(0);
+        batch.stream().parallel().forEach(bigData -> {
+            final int i = index.getAndIncrement();
+            arrays.ids[i] = bigData.getId();
+            arrays.sensorIds[i] = bigData.getSensorId();
+            arrays.eventTimes[i] = bigData.getEventTime();
+            arrays.sensorValues[i] = bigData.getSensorValue();
+        });
+        final Duration prepDuration = Duration.ofNanos(System.nanoTime() - prepStart);
+        log.trace("[{}] Preparation of {} records in {} (Speed: {} r/ms)", step, BATCH_SIZE, prepDuration, (float) BATCH_SIZE / prepDuration.toMillis());
+        return arrays;
     }
 }
