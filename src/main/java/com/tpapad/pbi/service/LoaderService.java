@@ -65,6 +65,35 @@ public class LoaderService {
         log.info("[UNNEST] Saved {} ({} in batch) records in {}ms (Speed: {} r/ms)", rowsInserted, BATCH_SIZE, duration.toMillis(), (float) BATCH_SIZE / duration.toMillis());
     }
 
+    @Scheduled(initialDelay = 2, fixedDelay = 10, timeUnit = TimeUnit.SECONDS)
+    @Transactional
+    public void testWithUnnestAlternative() {
+        log.info("[Multi-UNNEST] Starting...");
+        final List<BigData> batch = generateBatch(BATCH_SIZE);
+        // In case we need to time this extra step that prepares the arrays for `unnest`...
+        final long prepStart = System.nanoTime();
+        final int size = batch.size();
+        final Long[] ids = new Long[size];
+        final String[] sensors = new String[size];
+        final Instant[] timestamps = new Instant[size];
+        final Float[] values = new Float[size];
+        final AtomicInteger index = new AtomicInteger(0);
+        batch.stream().parallel().forEach(bigData -> {
+            final int i = index.getAndIncrement();
+            ids[i] = bigData.getId();
+            sensors[i] = bigData.getSensorId();
+            timestamps[i] = bigData.getEventTime();
+            values[i] = bigData.getSensorValue();
+        });
+        final Duration prepDuration = Duration.ofNanos(System.nanoTime() - prepStart);
+        log.trace("[Multi-UNNEST] Preparation of {} records in {} (Speed: {} r/ms)", BATCH_SIZE, prepDuration, (float) BATCH_SIZE / prepDuration.toMillis());
+
+        final long startTime = System.nanoTime();
+        int rowsInserted = repository.batchWithUnnestAlternative(ids, sensors, timestamps, values);
+        final Duration duration = Duration.ofNanos(System.nanoTime() - startTime);
+        log.info("[Multi-UNNEST] Saved {} ({} in batch) records in {}ms (Speed: {} r/ms)", rowsInserted, BATCH_SIZE, duration.toMillis(), (float) BATCH_SIZE / duration.toMillis());
+    }
+
     private List<BigData> generateBatch(final int size) {
         final List<BigData> batch = new ArrayList<>(size);
         final long batchStartingId = r.nextLong();
