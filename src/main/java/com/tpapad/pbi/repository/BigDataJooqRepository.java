@@ -55,7 +55,7 @@ public class BigDataJooqRepository {
                 .on(field("t1.ordinality").eq(field("t4.ordinality"))));
         steps.onConflict(updatePrimaryKeys).doUpdate().set(field("sensor_value"), (Object) excluded(field("sensor_value")));
         final Duration prepDuration = Duration.ofNanos(System.nanoTime() - prepStart);
-        log.info("[jOOQ] Query Preparation in {}ms", prepDuration);
+        log.trace("[jOOQ] Query Preparation in {}", prepDuration);
         log.trace("[jOOQ] Query:\n{}", steps.getSQL(ParamType.INLINED));
 
         final long startTime = System.nanoTime();
