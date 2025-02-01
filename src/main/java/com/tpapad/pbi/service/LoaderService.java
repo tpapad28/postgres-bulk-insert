@@ -2,6 +2,7 @@ package com.tpapad.pbi.service;
 
 import com.tpapad.pbi.model.BigData;
 import com.tpapad.pbi.model.BigDataArrays;
+import com.tpapad.pbi.repository.BigDataJooqRepository;
 import com.tpapad.pbi.repository.BigDataRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,10 +24,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class LoaderService {
 
     private final BigDataRepository repository;
+    private final BigDataJooqRepository repositoryJooq;
     private final Random r = new Random();
     private static final int BATCH_SIZE = 20_000;
 
-    @Scheduled(initialDelay = 5, fixedDelay = 10, timeUnit = TimeUnit.SECONDS)
+    @Scheduled(initialDelay = 6, fixedDelay = 10, timeUnit = TimeUnit.SECONDS)
     @Transactional
     public void testWithSaveAll() {
         log.info("[SAVEALL] Starting...");
@@ -61,6 +63,16 @@ public class LoaderService {
         int rowsInserted = repository.batchWithUnnestAlternative(arrays.ids, arrays.sensorIds, arrays.eventTimes, arrays.sensorValues);
         final Duration duration = Duration.ofNanos(System.nanoTime() - startTime);
         log.info("[Multi-UNNEST] Saved {} ({} in batch) records in {}ms (Speed: {} r/ms)", rowsInserted, BATCH_SIZE, duration.toMillis(), (float) BATCH_SIZE / duration.toMillis());
+    }
+
+    @Scheduled(initialDelay = 4, fixedDelay = 10, timeUnit = TimeUnit.SECONDS)
+    @Transactional
+    public void testWithJOOQ() {
+        log.info("[jOOQ] Starting...");
+        final List<BigData> batch = generateBatch(BATCH_SIZE);
+        final BigDataArrays arrays = generateArrays(batch, "jOOQ");
+
+        repositoryJooq.batchWithUnnestAlternativeJooq(arrays.ids, arrays.sensorIds, arrays.eventTimes, arrays.sensorValues, BATCH_SIZE);
     }
 
     private List<BigData> generateBatch(final int size) {
