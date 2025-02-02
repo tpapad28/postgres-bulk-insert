@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 public class LoaderService {
 
+    private final StatisticsService statisticsService;
     private final BigDataRepository repository;
     private final BigDataJooqRepository repositoryJooq;
     private final Random r = new Random();
@@ -36,7 +37,7 @@ public class LoaderService {
         final long startTime = System.nanoTime();
         repository.saveAll(batch);
         final Duration duration = Duration.ofNanos(System.nanoTime() - startTime);
-        log.info("[SAVEALL] Saved {} records in {}ms (Speed: {} r/ms)", BATCH_SIZE, duration.toMillis(), (float) BATCH_SIZE / duration.toMillis());
+        statisticsService.exportAndLog("SAVEALL", duration.toMillis(), BATCH_SIZE);
     }
 
     @Scheduled(fixedDelay = 10, timeUnit = TimeUnit.SECONDS)
@@ -49,7 +50,7 @@ public class LoaderService {
         final long startTime = System.nanoTime();
         int rowsInserted = repository.batchWithUnnest(arrays.ids, arrays.sensorIds, arrays.eventTimes, arrays.sensorValues);
         final Duration duration = Duration.ofNanos(System.nanoTime() - startTime);
-        log.info("[UNNEST] Saved {} ({} in batch) records in {}ms (Speed: {} r/ms)", rowsInserted, BATCH_SIZE, duration.toMillis(), (float) BATCH_SIZE / duration.toMillis());
+        statisticsService.exportAndLog("UNNEST", duration.toMillis(), rowsInserted);
     }
 
     @Scheduled(initialDelay = 2, fixedDelay = 10, timeUnit = TimeUnit.SECONDS)
@@ -62,7 +63,7 @@ public class LoaderService {
         final long startTime = System.nanoTime();
         int rowsInserted = repository.batchWithUnnestAlternative(arrays.ids, arrays.sensorIds, arrays.eventTimes, arrays.sensorValues);
         final Duration duration = Duration.ofNanos(System.nanoTime() - startTime);
-        log.info("[Multi-UNNEST] Saved {} ({} in batch) records in {}ms (Speed: {} r/ms)", rowsInserted, BATCH_SIZE, duration.toMillis(), (float) BATCH_SIZE / duration.toMillis());
+        statisticsService.exportAndLog("Multi-UNNEST", duration.toMillis(), rowsInserted);
     }
 
     @Scheduled(initialDelay = 4, fixedDelay = 10, timeUnit = TimeUnit.SECONDS)
@@ -72,7 +73,10 @@ public class LoaderService {
         final List<BigData> batch = generateBatch(BATCH_SIZE);
         final BigDataArrays arrays = generateArrays(batch, "jOOQ");
 
-        repositoryJooq.batchWithUnnestAlternativeJooq(arrays.ids, arrays.sensorIds, arrays.eventTimes, arrays.sensorValues, BATCH_SIZE);
+        final long startTime = System.nanoTime();
+        int rowsInserted = repositoryJooq.batchWithUnnestAlternativeJooq(arrays.ids, arrays.sensorIds, arrays.eventTimes, arrays.sensorValues);
+        final Duration duration = Duration.ofNanos(System.nanoTime() - startTime);
+        statisticsService.exportAndLog("jOOQ", duration.toMillis(), rowsInserted);
     }
 
     private List<BigData> generateBatch(final int size) {
