@@ -27,7 +27,7 @@ import static org.jooq.impl.DSL.field;
 public class BigDataJooqRepository {
     private final DSLContext dsl;
 
-    public int batchWithUnnestAlternativeJooq(Long[] ids, String[] sensors, Instant[] timestamps, Float[] values, final int size) {
+    public int batchWithUnnestAlternativeJooq(Long[] ids, String[] sensors, Instant[] timestamps, Float[] values) {
         // In case we need to time this extra step that prepares the queries...
         final long prepStart = System.nanoTime();
 
@@ -58,11 +58,6 @@ public class BigDataJooqRepository {
         log.trace("[jOOQ] Query Preparation in {}", prepDuration);
         log.trace("[jOOQ] Query:\n{}", steps.getSQL(ParamType.INLINED));
 
-        final long startTime = System.nanoTime();
-        int rows = steps.execute();
-        final Duration duration = Duration.ofNanos(System.nanoTime() - startTime);
-        log.info("[jOOQ] Saved {} ({} in batch) records in {}ms (Speed: {} r/ms)", rows, size, duration.toMillis(), (float) size / duration.toMillis());
-
-        return rows;
+        return steps.execute();
     }
 }
